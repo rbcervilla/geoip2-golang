@@ -65,7 +65,7 @@ func TestReader(t *testing.T) {
 	)
 
 	assert.Equal(t, uint(2635167), record.Country.GeoNameID)
-	assert.True(t, record.Country.IsInEuropeanUnion)
+	assert.False(t, record.Country.IsInEuropeanUnion)
 	assert.Equal(t, "GB", record.Country.IsoCode)
 	assert.Equal(t,
 		map[string]string{
@@ -137,12 +137,13 @@ func TestAnonymousIP(t *testing.T) {
 	record, err := reader.AnonymousIP(net.ParseIP("1.2.0.0"))
 	assert.Nil(t, err)
 
-	assert.Equal(t, true, record.IsAnonymous)
+	assert.True(t, record.IsAnonymous)
 
-	assert.Equal(t, true, record.IsAnonymousVPN)
-	assert.Equal(t, false, record.IsHostingProvider)
-	assert.Equal(t, false, record.IsPublicProxy)
-	assert.Equal(t, false, record.IsTorExitNode)
+	assert.True(t, record.IsAnonymousVPN)
+	assert.False(t, record.IsHostingProvider)
+	assert.False(t, record.IsPublicProxy)
+	assert.False(t, record.IsTorExitNode)
+	assert.False(t, record.IsResidentialProxy)
 }
 
 func TestASN(t *testing.T) {
@@ -179,7 +180,7 @@ func TestCountry(t *testing.T) {
 	record, err := reader.Country(net.ParseIP("81.2.69.160"))
 	assert.Nil(t, err)
 
-	assert.True(t, record.Country.IsInEuropeanUnion)
+	assert.False(t, record.Country.IsInEuropeanUnion)
 	assert.False(t, record.RegisteredCountry.IsInEuropeanUnion)
 	assert.False(t, record.RepresentedCountry.IsInEuropeanUnion)
 }
@@ -230,7 +231,7 @@ func TestISP(t *testing.T) {
 // This ensures the compiler does not optimize away the function call
 var cityResult *City
 
-func BenchmarkMaxMindDB(b *testing.B) {
+func BenchmarkCity(b *testing.B) {
 	db, err := Open("GeoLite2-City.mmdb")
 	if err != nil {
 		b.Fatal(err)
@@ -241,8 +242,9 @@ func BenchmarkMaxMindDB(b *testing.B) {
 
 	var city *City
 
+	ip := make(net.IP, 4)
 	for i := 0; i < b.N; i++ {
-		ip := randomIPv4Address(r)
+		randomIPv4Address(r, ip)
 		city, err = db.City(ip)
 		if err != nil {
 			b.Fatal(err)
@@ -251,8 +253,35 @@ func BenchmarkMaxMindDB(b *testing.B) {
 	cityResult = city
 }
 
-func randomIPv4Address(r *rand.Rand) net.IP {
+// This ensures the compiler does not optimize away the function call
+var asnResult *ASN
+
+func BenchmarkASN(b *testing.B) {
+	db, err := Open("GeoLite2-ASN.mmdb")
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer db.Close()
+
+	r := rand.New(rand.NewSource(0))
+
+	var asn *ASN
+
+	ip := make(net.IP, 4)
+	for i := 0; i < b.N; i++ {
+		randomIPv4Address(r, ip)
+		asn, err = db.ASN(ip)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+	asnResult = asn
+}
+
+func randomIPv4Address(r *rand.Rand, ip net.IP) {
 	num := r.Uint32()
-	return []byte{byte(num >> 24), byte(num >> 16), byte(num >> 8),
-		byte(num)}
+	ip[0] = byte(num >> 24)
+	ip[1] = byte(num >> 16)
+	ip[2] = byte(num >> 8)
+	ip[3] = byte(num)
 }
